@@ -1,3 +1,4 @@
 Hi
 
-this project is a text -> image or text + image -> image model
+this project would be a text -> image or text + image -> image model
+(still WIP)
