@@ -11,7 +11,8 @@ class DownResidualBlock(nn.Module):
                 scaler: int,
                 out_channels: int,
                 kernel_size: int,
-                num_groups: int
+                num_groups: int,
+                resize: bool = True,
               ):
     super().__init__()
 
@@ -29,7 +30,7 @@ class DownResidualBlock(nn.Module):
         scaler,
         out_channels,
         kernel_size,
-        stride=2,
+        stride=2 if resize else 1,
         padding=1
       ),
       nn.GroupNorm(num_groups, out_channels),
@@ -39,7 +40,7 @@ class DownResidualBlock(nn.Module):
       in_channels,
       out_channels,
       kernel_size=1,
-      stride=2,
+      stride=2 if resize else 1,
     )
 
   def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -53,11 +54,12 @@ class UpResidualBlock(nn.Module):
                 scaler: int,
                 out_channels: int,
                 kernel_size: int,
-                num_groups: int
+                num_groups: int,
+                resize: bool = True,
               ):
     super().__init__()
 
-    self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
+    self.upsample = nn.Upsample(scale_factor=2, mode="nearest") if resize else nn.Identity()
     self.main = nn.Sequential(
       nn.Conv2d(
         in_channels,
@@ -96,7 +98,14 @@ def get_layers(
     start_channels: int = 16,
     layers: int = 3,
     decoder: bool = False,
+    downsample_steps: int = 3,
 ) -> list[nn.Module]:
+  if layers < 1 or not 0 <= downsample_steps <= layers:
+    raise ValueError("layers must be positive and 0 <= downsample_steps <= layers")
+  resize_indices = {
+    (step * layers) // downsample_steps
+    for step in range(downsample_steps)
+  }
   output = []
 
   block_type = UpResidualBlock if decoder else DownResidualBlock
@@ -117,6 +126,7 @@ def get_layers(
         out_channels=block_output,
         kernel_size=kernel_size,
         num_groups=math.gcd(scaler, block_output),
+        resize=layer_idx in resize_indices,
       )
     )
 

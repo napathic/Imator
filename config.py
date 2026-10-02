@@ -26,24 +26,31 @@ class Paths:
     return self.base_dir / self.test_folder
 
 @dataclass
+class Image:
+  channels: int = 3
+  image_size: int = 32
+
+@dataclass
 class Vae:
   out_channels: int = 8
-  in_channels: int = 3
+  in_channels: int = Image.channels
   kernel_size: int = 3
-  start_channels: int = 20
+  start_channels: int = 32
   layers: int = 4
+  downsample_steps: int = 3
 
 @dataclass
 class Training:
   vae_lr: float = 3e-4
   batch_size: int = 64
-  epochs: int = 5
+  epochs: int = 10
 
 @dataclass
 class Config():
   paths: Paths = field(default_factory=Paths)
   vae: Vae = field(default_factory=Vae)
   training: Training = field(default_factory=Training)
+  image: Image = field(default_factory=Image)
 
   device: str = field(
     default_factory=lambda: (

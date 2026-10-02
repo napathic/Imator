@@ -11,7 +11,8 @@ class Encoder(nn.Module):
                 in_channels: int = 3,
                 kernel_size: int = 3,
                 start_channels: int = 16,
-                layers: int = 4
+                layers: int = 4,
+                downsample_steps: int = 3,
               ):
     super().__init__()
 
@@ -21,7 +22,8 @@ class Encoder(nn.Module):
         kernel_size=kernel_size,
         start_channels=start_channels,
         layers=layers,
-        decoder=False
+        decoder=False,
+        downsample_steps=downsample_steps,
       )
     )
     _out_backbone_dim = start_channels * layers * 2
@@ -42,7 +44,8 @@ class Decoder(nn.Module):
                 in_channels: int = 3,
                 kernel_size: int = 3,
                 start_channels: int = 16,
-                layers: int = 4
+                layers: int = 4,
+                downsample_steps: int = 3,
               ):
     super().__init__()
 
@@ -61,7 +64,8 @@ class Decoder(nn.Module):
         kernel_size=kernel_size,
         start_channels=start_channels,
         layers=layers,
-        decoder=True
+        decoder=True,
+        downsample_steps=downsample_steps,
       )
     )
 
@@ -75,10 +79,11 @@ class Vae(nn.Module):
                 in_channels: int = 3,
                 kernel_size: int = 3,
                 start_channels: int = 16,
-                layers: int = 4
+                layers: int = 4,
+                downsample_steps: int = 3,
               ):
     super().__init__()
-    params = (out_channels, in_channels, kernel_size, start_channels, layers)
+    params = (out_channels, in_channels, kernel_size, start_channels, layers, downsample_steps)
 
     self.encoder: Encoder = Encoder(*params)
     self.decoder: Decoder = Decoder(*params)

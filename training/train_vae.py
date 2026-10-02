@@ -1,7 +1,3 @@
-import torch.nn.functional as F
-from torch import nn
-import torch
-
 from dataclasses import asdict
 from model.autoencoder import Vae
 from tqdm import tqdm
@@ -11,11 +7,12 @@ from torch.utils.data import DataLoader
 from pathlib import Path
 
 from config import cfg
+import torch
 
 
 train_set = OpenImagesDataset(
-  image_dir=Path("data") / "open-images" / "training_images",
-  image_size=32
+  image_dir=Path("data") / "open-images" / "train_images",
+  image_size=cfg.image.image_size
 )
 
 train_loader = DataLoader(

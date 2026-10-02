@@ -1,55 +1,84 @@
-Imator would be a modern optimized simple to use text to Image model + image -> image features for photo editing based on a image and text
+# Imator
 
+A text-to-image and image-to-image model in development, for generating and editing images with text prompts.
 
----------------------------------------------
-currently working on:
-Vae training.
+**Currently working on:** VAE training.
 
+## Train the VAE
 
----------------------------------------------
-how to train the vae:
+Run all commands from the project root.
 
-1. make and activate venv
+### 1. Set up Python
+
+```bash
 python3 -m venv .venv
-. .venv/bin/activate
+source .venv/bin/activate
 pip install -r requirements.txt
+```
 
-2. first download the required metadata
-curl -L \
+### 2. Download metadata → extract IDs → delete metadata
+
+```bash
+mkdir -p data/open-images
+
+curl -fL \
   https://storage.googleapis.com/openimages/2018_04/train/train-images-boxable-with-rotation.csv \
-  -o data/open-images/train_metadata.csv
-
-3. convert it to a txt
+  -o data/open-images/train_metadata.csv && \
 awk -F, 'NR > 1 {
   gsub(/\r/, "", $1)
   print "train/" $1
 }' data/open-images/train_metadata.csv \
-  > data/open-images/train_ids.txt
-
-4. (optional) delete the metadata
+  > data/open-images/dataset_ids.txt && \
 rm -f data/open-images/train_metadata.csv
+```
 
-5. Create a new file with random image ids from the set,
+### 3. Create training and test splits
+
+Default: **5,000 training images** and **1,000 test images**. Change `TRAIN_COUNT` and `TEST_COUNT` below to choose your own sizes.
+
+The splits have no overlap; both are sampled from the Open Images training pool.
+
+```bash
 python - <<'PY'
 import random
 from pathlib import Path
 
-source = Path("data/open-images/train_ids.txt")
-destination = Path("data/open-images/test_ids.txt")
+TRAIN_COUNT = 5_000
+TEST_COUNT = 1_000
+SEED = 51
 
-ids = source.read_text().splitlines()
-random.seed(51)
-sample = random.sample(ids, 5_000)
+root = Path("data/open-images")
+ids = list(dict.fromkeys(root.joinpath("dataset_ids.txt").read_text().splitlines()))
+sample = random.Random(SEED).sample(ids, TRAIN_COUNT + TEST_COUNT)
 
-destination.write_text("\n".join(sample) + "\n")
-print(f"Wrote {len(sample)} IDs to {destination}")
+for name, split in (
+    ("train_ids.txt", sample[:TRAIN_COUNT]),
+    ("test_ids.txt", sample[TRAIN_COUNT:]),
+):
+    destination = root / name
+    destination.write_text("\n".join(split) + "\n")
+    print(f"Wrote {len(split):,} IDs to {destination}")
 PY
+```
 
-6. start google downloader to download all thoes images
+### 4. Download both splits
+
+```bash
+mkdir -p data/open-images/train_images data/open-images/test_images
+
 python downloader.py \
-  data/open-images/test_ids.txt \
-  --download_folder=data/open-images/images \
+  data/open-images/train_ids.txt \
+  --download_folder=data/open-images/train_images \
   --num_processes=5
 
-7. start training the VAE
+python downloader.py \
+  data/open-images/test_ids.txt \
+  --download_folder=data/open-images/test_images \
+  --num_processes=5
+```
+
+### 5. Start training
+
+```bash
 python -m training.train_vae
+```
