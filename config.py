@@ -43,7 +43,7 @@ class Vae:
 class Training:
   vae_lr: float = 3e-4
   batch_size: int = 64
-  epochs: int = 10
+  epochs: int = 2
 
 @dataclass
 class Config():

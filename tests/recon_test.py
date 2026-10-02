@@ -16,9 +16,9 @@ train_set = OpenImagesDataset(
 folder = cfg.paths.ckpt_dir / "vae"
 
 latest = max(
-    folder.glob("vae*.pt"),
-    key=lambda path: int(path.stem.removeprefix("vae")),
-    default=None,
+  (path for path in folder.glob("vae*.pt") if path.stem.removeprefix("vae").isdigit()),
+  key=lambda path: int(path.stem.removeprefix("vae")),
+  default=None,
 )
 
 if latest is None:
@@ -27,7 +27,8 @@ if latest is None:
 vae = Vae(**asdict(cfg.vae))
 vae.to(cfg.device)
 
-vae.load_state_dict(torch.load(latest, map_location=cfg.device, weights_only=True))
+checkpoint = torch.load(latest, map_location=cfg.device, weights_only=True)
+vae.load_state_dict(checkpoint.get("model_state_dict", checkpoint))
 vae.eval()
 
 

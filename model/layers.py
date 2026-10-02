@@ -21,7 +21,7 @@ class DownResidualBlock(nn.Module):
         in_channels,
         scaler,
         kernel_size,
-        padding=1
+        padding=kernel_size // 2
       ),
       nn.GroupNorm(num_groups, scaler),
       nn.SiLU(),
@@ -31,7 +31,7 @@ class DownResidualBlock(nn.Module):
         out_channels,
         kernel_size,
         stride=2 if resize else 1,
-        padding=1
+        padding=kernel_size // 2
       ),
       nn.GroupNorm(num_groups, out_channels),
     )
@@ -99,6 +99,7 @@ def get_layers(
     layers: int = 3,
     decoder: bool = False,
     downsample_steps: int = 3,
+    feature_output: bool = False,
 ) -> list[nn.Module]:
   if layers < 1 or not 0 <= downsample_steps <= layers:
     raise ValueError("layers must be positive and 0 <= downsample_steps <= layers")
@@ -119,13 +120,16 @@ def get_layers(
     encoder_output = (i + 2) * start_channels
 
     block_output = encoder_input if decoder else encoder_output
+    if decoder and feature_output and layer_idx == 0:
+      block_output = start_channels
     output.append(
       block_type(
         in_channels=encoder_output if decoder else encoder_input,
         scaler=scaler,
         out_channels=block_output,
         kernel_size=kernel_size,
-        num_groups=math.gcd(scaler, block_output),
+        num_groups=(math.gcd(8, start_channels) if decoder and feature_output and layer_idx == 0
+                    else math.gcd(scaler, block_output)),
         resize=layer_idx in resize_indices,
       )
     )

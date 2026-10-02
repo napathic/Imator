@@ -34,7 +34,7 @@ rm -f data/open-images/train_metadata.csv
 
 ### 3. Create training and test splits
 
-Default: **5,000 training images** and **1,000 test images**. Change `TRAIN_COUNT` and `TEST_COUNT` below to choose your own sizes.
+Default: **50,000 training images** and **500 test images**. Change `TRAIN_COUNT` and `TEST_COUNT` below to choose your own sizes.
 
 The splits have no overlap; both are sampled from the Open Images training pool.
 
@@ -43,9 +43,9 @@ python - <<'PY'
 import random
 from pathlib import Path
 
-TRAIN_COUNT = 5_000
-TEST_COUNT = 1_000
-SEED = 51
+TRAIN_COUNT = 250_000
+TEST_COUNT = 500
+SEED = 55
 
 root = Path("data/open-images")
 ids = list(dict.fromkeys(root.joinpath("dataset_ids.txt").read_text().splitlines()))
@@ -69,12 +69,12 @@ mkdir -p data/open-images/train_images data/open-images/test_images
 python downloader.py \
   data/open-images/train_ids.txt \
   --download_folder=data/open-images/train_images \
-  --num_processes=5
+  --num_processes=35
 
 python downloader.py \
   data/open-images/test_ids.txt \
   --download_folder=data/open-images/test_images \
-  --num_processes=5
+  --num_processes=35
 ```
 
 ### 5. Start training

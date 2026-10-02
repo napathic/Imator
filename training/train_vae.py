@@ -21,6 +21,15 @@ train_loader = DataLoader(
   shuffle=True
 )
 
+folder = cfg.paths.ckpt_dir / "vae"
+n_epoch = lambda path: int(path.stem.removeprefix("vae"))
+
+latest = max(
+  (path for path in folder.glob("vae*.pt") if path.stem.removeprefix("vae").isdigit()),
+  key=n_epoch,
+  default=None,
+)
+
 vae = Vae(**asdict(cfg.vae))
 vae.to(cfg.device)
 
@@ -33,7 +42,17 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
 
 ema_loss = None
 ema_alpha = 0.05
-for epoch in range(cfg.training.epochs):
+start_epoch = 0
+if latest is not None:
+  checkpoint = torch.load(latest, map_location=cfg.device, weights_only=True)
+  vae.load_state_dict(checkpoint["model_state_dict"])
+  optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+  scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+  start_epoch = checkpoint["epoch"]
+  ema_loss = checkpoint.get("ema_loss")
+
+
+for epoch in range(start_epoch, cfg.training.epochs):
   loop = tqdm(iterable=train_loader, desc=f"Epoch {epoch + 1}/{cfg.training.epochs}")
   for x in loop:
     x: torch.Tensor = x.to(cfg.device)
@@ -48,6 +67,15 @@ for epoch in range(cfg.training.epochs):
     scheduler.step()
 
     loop.set_postfix(lr=f"{scheduler.get_last_lr()[0]:.2e}", loss=ema_loss)
-  ckpt_file = cfg.paths.ckpt_dir / "vae" / f"vae{epoch + 1}.pt"
+  ckpt_file = folder / f"vae{epoch + 1}.pt"
   ckpt_file.parent.mkdir(parents=True, exist_ok=True)
-  torch.save(vae.state_dict(), ckpt_file)
+  # Publish only complete epoch checkpoints, so interrupted saves aren't loaded.
+  temp_file = ckpt_file.with_suffix(".pt.tmp")
+  torch.save({
+    "epoch": epoch + 1,
+    "model_state_dict": vae.state_dict(),
+    "optimizer_state_dict": optimizer.state_dict(),
+    "scheduler_state_dict": scheduler.state_dict(),
+    "ema_loss": ema_loss,
+  }, temp_file)
+  temp_file.replace(ckpt_file)
