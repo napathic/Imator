@@ -13,8 +13,22 @@ train_set = OpenImagesDataset(
   image_size=cfg.image.image_size
 )
 
+folder = cfg.paths.ckpt_dir / "vae"
+
+latest = max(
+    folder.glob("vae*.pt"),
+    key=lambda path: int(path.stem.removeprefix("vae")),
+    default=None,
+)
+
+if latest is None:
+  raise FileNotFoundError("Ckpt not found.")
+
 vae = Vae(**asdict(cfg.vae))
 vae.to(cfg.device)
+
+vae.load_state_dict(torch.load(latest, map_location=cfg.device, weights_only=True))
+vae.eval()
 
 
 for x in train_set:
