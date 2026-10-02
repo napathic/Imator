@@ -1,5 +1,6 @@
 from omegaconf import OmegaConf
 from dataclasses import dataclass, field
+import torch
 
 from pathlib import Path
 
@@ -13,7 +14,7 @@ class Paths:
   test_folder: str = "tests"
 
   @property
-  def checkpoint_dir(self) -> Path:
+  def ckpt_dir(self) -> Path:
     return self.base_dir / self.checkpoint_folder
 
   @property
@@ -33,8 +34,24 @@ class Vae:
   layers: int = 4
 
 @dataclass
+class Training:
+  vae_lr: float = 3e-4
+  batch_size: int = 64
+  epochs: int = 5
+
+@dataclass
 class Config():
   paths: Paths = field(default_factory=Paths)
   vae: Vae = field(default_factory=Vae)
+  training: Training = field(default_factory=Training)
 
-cfg: Config = OmegaConf.structured(Config)
+  device: str = field(
+    default_factory=lambda: (
+      "cuda" if torch.cuda.is_available() else
+      "mps" if torch.backends.mps.is_available()
+      else "cpu"
+    ))
+
+
+structured_cfg = OmegaConf.structured(Config)
+cfg: Config = OmegaConf.to_object(structured_cfg)

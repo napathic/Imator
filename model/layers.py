@@ -44,8 +44,7 @@ class DownResidualBlock(nn.Module):
 
   def forward(self, x: torch.Tensor) -> torch.Tensor:
     y = self.main(x)
-    residual = self.skip(x)
-    return F.silu(y + residual)
+    return F.silu(y + self.skip(x))
 
 
 class UpResidualBlock(nn.Module):

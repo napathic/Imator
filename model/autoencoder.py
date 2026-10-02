@@ -93,3 +93,11 @@ class Vae(nn.Module):
     std = torch.exp(0.5 * logvar)
     eps = torch.randn_like(std)
     return mu + eps * std
+
+  @staticmethod
+  def reconstruction_loss(reconstruction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    return F.l1_loss(reconstruction, target)# + ... # NOTE: start with simple loss, make sure its working, then add MS-SSIN + l1 loss
+
+  @staticmethod
+  def _SSIM_loss(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    ...
