@@ -34,7 +34,7 @@ vae.eval()
 
 for x in train_set:
   x: torch.Tensor = x.unsqueeze(0).to(cfg.device)
-  pred: torch.Tensor = vae(x).squeeze(0)
+  pred: torch.Tensor = vae(x)[0].squeeze(0)
 
   torch_pixels = torch.cat((x[0], pred), dim=2)
 

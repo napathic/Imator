@@ -56,8 +56,8 @@ for epoch in range(start_epoch, cfg.training.epochs):
   loop = tqdm(iterable=train_loader, desc=f"Epoch {epoch + 1}/{cfg.training.epochs}")
   for x in loop:
     x: torch.Tensor = x.to(cfg.device)
-    pred = vae(x)
-    loss = vae.reconstruction_loss(reconstruction=pred, target=x)
+    pred, mu, logvar = vae(x)
+    loss = vae.reconstruction_loss(reconstruction=pred, target=x, logvar=logvar, mu=mu)
 
     optimizer.zero_grad()
     loss.backward()
