@@ -145,11 +145,10 @@ class Vae(nn.Module):
                         ) -> torch.Tensor:
     l1_loss = F.l1_loss(reconstruction, target)
     p_loss = self._get_lpips(target.device)(reconstruction, target, normalize=True).mean()
-    kl_loss = self._KL_LOSS(logvar, mu)
+    kl_loss = self._kl_loss(logvar, mu)
     s_loss = self.ms_ssim_loss(reconstruction, target)
     return 0.7 * s_loss + 0.4 * l1_loss + 0.6 * p_loss + 1e-6 * kl_loss
 
-  @staticmethod
   @staticmethod
   def _ssim(
     x: torch.Tensor,
@@ -174,7 +173,16 @@ class Vae(nn.Module):
                     win: int = 11,
                     sigma: float = 1.5
                   ) -> torch.Tensor:
-    # use only the scales where the window still fits, small images can't do all 5
+    with torch.autocast(device_type=x.device.type, enabled=False):
+      return self._ms_ssim_loss(x.float(), y.float(), data_range, win, sigma)
+
+  def _ms_ssim_loss(self,
+                    x: torch.Tensor,
+                    y: torch.Tensor,
+                    data_range: float,
+                    win: int,
+                    sigma: float,
+                  ) -> torch.Tensor:
     min_side = min(x.shape[-2:])
     scales = 1
     while scales < len(self._MS_SSIM_WEIGHTS) and min_side // 2 ** scales >= win:
@@ -197,6 +205,6 @@ class Vae(nn.Module):
     return 1 - ms.mean()
 
   @staticmethod
-  def _KL_LOSS(logvar: torch.Tensor, mu: torch.Tensor) -> torch.Tensor:
+  def _kl_loss(logvar: torch.Tensor, mu: torch.Tensor) -> torch.Tensor:
     kl = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
     return kl.sum(dim=(1, 2, 3)).mean()

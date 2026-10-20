@@ -44,7 +44,7 @@ def resize_one(job: tuple[Path, Path, int]) -> bool:
     return False
 
 
-def preresize(size: int) -> None:
+def preresize(size: int, workers: int | None = None) -> None:
   for split in SPLITS:
     src_dir = IMAGE_ROOT / split
     if not src_dir.exists():
@@ -61,7 +61,7 @@ def preresize(size: int) -> None:
     ]
 
     failed = 0
-    with Pool(os.cpu_count()) as pool:
+    with Pool(workers or os.cpu_count()) as pool:
       for ok in tqdm(pool.imap_unordered(resize_one, jobs, chunksize=64), total=len(jobs), desc=f"{split} -> {size}px"):
         failed += not ok
 

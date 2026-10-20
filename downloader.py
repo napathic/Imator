@@ -89,7 +89,8 @@ def download_all_images(args):
   """Downloads all images specified in the input file."""
   bucket = boto3.resource(
       's3', config=botocore.config.Config(
-          signature_version=botocore.UNSIGNED)).Bucket(BUCKET_NAME)
+          signature_version=botocore.UNSIGNED,
+          max_pool_connections=args['num_processes'])).Bucket(BUCKET_NAME)
 
   download_folder = args['download_folder'] or os.getcwd()
 

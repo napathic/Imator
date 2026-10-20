@@ -28,7 +28,7 @@ class Paths:
 @dataclass
 class Image:
   channels: int = 3
-  image_size: int = 64
+  image_size: int = 256
 
 @dataclass
 class Vae:
@@ -37,13 +37,13 @@ class Vae:
   kernel_size: int = 3
   start_channels: int = 32
   layers: int = 4
-  downsample_steps: int = 2
+  downsample_steps: int = 3
 
 @dataclass
 class Training:
   vae_lr: float = 3e-4
-  batch_size: int = 64
-  epochs: int = 2
+  batch_size: int = 24
+  epochs: int = 1
 
 @dataclass
 class Config():

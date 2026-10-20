@@ -1,6 +1,7 @@
 from pathlib import Path
 from urllib.request import urlopen
 import argparse
+import os
 import random
 import csv
 
@@ -12,11 +13,12 @@ from scripts.preresize import IMAGE_ROOT, preresize
 
 
 METADATA_URL = "https://storage.googleapis.com/openimages/2018_04/train/train-images-boxable-with-rotation.csv"
-TRAIN_COUNT = 250_000
+TRAIN_COUNT = 400_000
 TEST_COUNT = 500
 SEED = 55
 NUM_PROCESSES = 35
 IMAGE_SIZE = cfg.image.image_size
+CPU_FRACTION = 0.8
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,6 +28,7 @@ def parse_args() -> argparse.Namespace:
   parser.add_argument("--seed", type=int, default=SEED, help=f"split sampling seed (default {SEED})")
   parser.add_argument("--num-processes", type=int, default=NUM_PROCESSES, help=f"parallel downloads (default {NUM_PROCESSES})")
   parser.add_argument("--image-size", type=int, default=IMAGE_SIZE, help=f"pre-resize size (default cfg.image.image_size = {IMAGE_SIZE})")
+  parser.add_argument("--cpu-fraction", type=float, default=CPU_FRACTION, help=f"share of cpu cores used for pre-resizing (default {CPU_FRACTION})")
   return parser.parse_args()
 
 
@@ -83,7 +86,7 @@ def main() -> None:
       "num_processes": args.num_processes,
     })
 
-  preresize(args.image_size)
+  preresize(args.image_size, workers=max(1, int((os.cpu_count() or 1) * args.cpu_fraction)))
 
   if args.image_size != cfg.image.image_size:
     print(f"Note: training uses cfg.image.image_size = {cfg.image.image_size}, set it to {args.image_size} to use these images")

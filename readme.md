@@ -28,11 +28,12 @@ Defaults are at the top of [scripts/setup.py](scripts/setup.py) and can be overr
 
 | Flag | Default | Description |
 | --- | --- | --- |
-| `--train-count` | 250,000 | training images |
+| `--train-count` | 400,000 | training images |
 | `--test-count` | 500 | test images |
 | `--seed` | 55 | split sampling seed |
 | `--num-processes` | 35 | parallel downloads |
 | `--image-size` | `cfg.image.image_size` | pre-resize size |
+| `--cpu-fraction` | 0.8 | share of CPU cores used for pre-resizing |
 
 ```bash
 python -m scripts.setup --train-count 50000 --num-processes 16

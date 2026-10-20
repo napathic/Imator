@@ -57,13 +57,20 @@ def main() -> None:
     start_epoch = checkpoint["epoch"]
     ema_loss = checkpoint.get("ema_loss")
 
+  def compute_loss(x: torch.Tensor) -> torch.Tensor:
+    with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=cfg.device == "cuda"):
+      pred, mu, logvar = vae(x)
+      return vae.reconstruction_loss(reconstruction=pred, target=x, logvar=logvar, mu=mu)
+
+  if cfg.device == "cuda":
+    vae._get_lpips(torch.device(cfg.device))
+    compute_loss = torch.compile(compute_loss)
 
   for epoch in range(start_epoch, cfg.training.epochs):
     loop = tqdm(iterable=train_loader, desc=f"Epoch {epoch + 1}/{cfg.training.epochs}")
     for step, x in enumerate(loop):
       x: torch.Tensor = x.to(cfg.device)
-      pred, mu, logvar = vae(x)
-      loss = vae.reconstruction_loss(reconstruction=pred, target=x, logvar=logvar, mu=mu)
+      loss = compute_loss(x)
 
       optimizer.zero_grad()
       loss.backward()
