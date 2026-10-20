@@ -15,7 +15,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="torchvision.mode
 
 def main() -> None:
   train_set = OpenImagesDataset(
-    image_dir=Path("data") / "open-images" / "train_images",
+    image_dir=Path("data") / "open-images" / f"train_images_{cfg.image.image_size}",
     image_size=cfg.image.image_size
   )
 
@@ -43,7 +43,7 @@ def main() -> None:
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
     optimizer=optimizer,
     T_max=cfg.training.epochs * len(train_loader),
-    eta_min=cfg.training.vae_lr * 0.4
+    eta_min=cfg.training.vae_lr * 0.7
   )
 
   ema_loss = None
@@ -60,19 +60,20 @@ def main() -> None:
 
   for epoch in range(start_epoch, cfg.training.epochs):
     loop = tqdm(iterable=train_loader, desc=f"Epoch {epoch + 1}/{cfg.training.epochs}")
-    for x in loop:
+    for step, x in enumerate(loop):
       x: torch.Tensor = x.to(cfg.device)
       pred, mu, logvar = vae(x)
       loss = vae.reconstruction_loss(reconstruction=pred, target=x, logvar=logvar, mu=mu)
 
       optimizer.zero_grad()
       loss.backward()
-      ema_loss = loss.item() if ema_loss is None else loss.item() * ema_alpha + (1 - ema_alpha) * ema_loss
-
       optimizer.step()
       scheduler.step()
 
-      loop.set_postfix(lr=f"{scheduler.get_last_lr()[0]:.2e}", loss=ema_loss)
+      if step % 20 == 0:
+        loss_value = loss.item()
+        ema_loss = loss_value if ema_loss is None else loss_value * ema_alpha + (1 - ema_alpha) * ema_loss
+        loop.set_postfix(lr=f"{scheduler.get_last_lr()[0]:.2e}", loss=ema_loss)
     ckpt_file = folder / f"vae{epoch + 1}.pt"
     ckpt_file.parent.mkdir(parents=True, exist_ok=True)
 

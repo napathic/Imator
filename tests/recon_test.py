@@ -9,7 +9,7 @@ import torch
 from config import cfg
 
 train_set = OpenImagesDataset(
-  image_dir=Path("data") / "open-images" / "test_images",
+  image_dir=Path("data") / "open-images" / f"test_images_{cfg.image.image_size}",
   image_size=cfg.image.image_size
 )
 

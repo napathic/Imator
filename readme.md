@@ -16,74 +16,41 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Download metadata → extract IDs → delete metadata
+### 2. Download and prepare the dataset
 
 ```bash
-mkdir -p data/open-images
-
-curl -fL \
-  https://storage.googleapis.com/openimages/2018_04/train/train-images-boxable-with-rotation.csv \
-  -o data/open-images/train_metadata.csv && \
-awk -F, 'NR > 1 {
-  gsub(/\r/, "", $1)
-  print "train/" $1
-}' data/open-images/train_metadata.csv \
-  > data/open-images/dataset_ids.txt && \
-rm -f data/open-images/train_metadata.csv
+python -m scripts.setup
 ```
 
-### 3. Create training and test splits
+This downloads the Open Images ID list, samples non-overlapping train/test splits, downloads both splits and pre-resizes them to `cfg.image.image_size` into `data/open-images/{train,test}_images_<size>`. Re-running it skips images that are already downloaded or resized.
 
-Default: **50,000 training images** and **500 test images**. Change `TRAIN_COUNT` and `TEST_COUNT` below to choose your own sizes.
+Defaults are at the top of [scripts/setup.py](scripts/setup.py) and can be overridden with flags:
 
-The splits have no overlap; both are sampled from the Open Images training pool.
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--train-count` | 250,000 | training images |
+| `--test-count` | 500 | test images |
+| `--seed` | 55 | split sampling seed |
+| `--num-processes` | 35 | parallel downloads |
+| `--image-size` | `cfg.image.image_size` | pre-resize size |
 
 ```bash
-python - <<'PY'
-import random
-from pathlib import Path
-
-TRAIN_COUNT = 250_000
-TEST_COUNT = 500
-SEED = 55
-
-root = Path("data/open-images")
-ids = list(dict.fromkeys(root.joinpath("dataset_ids.txt").read_text().splitlines()))
-sample = random.Random(SEED).sample(ids, TRAIN_COUNT + TEST_COUNT)
-
-for name, split in (
-    ("train_ids.txt", sample[:TRAIN_COUNT]),
-    ("test_ids.txt", sample[TRAIN_COUNT:]),
-):
-    destination = root / name
-    destination.write_text("\n".join(split) + "\n")
-    print(f"Wrote {len(split):,} IDs to {destination}")
-PY
+python -m scripts.setup --train-count 50000 --num-processes 16
 ```
 
-### 4. Download both splits
+To only redo the resize (e.g. after changing `cfg.image.image_size`):
 
 ```bash
-mkdir -p data/open-images/train_images data/open-images/test_images
-
-python downloader.py \
-  data/open-images/train_ids.txt \
-  --download_folder=data/open-images/train_images \
-  --num_processes=35
-
-python downloader.py \
-  data/open-images/test_ids.txt \
-  --download_folder=data/open-images/test_images \
-  --num_processes=35
+python -m scripts.preresize
 ```
 
-### 5. Start training
+### 3. Start training
 
 ```bash
 python -m training.train_vae
 ```
 
-### 6. Test recon (optional)
+### 4. Test recon (optional)
 ```bash
 python -m tests.recon_test
 ```
