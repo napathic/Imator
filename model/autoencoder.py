@@ -67,12 +67,14 @@ class Decoder(nn.Module):
         layers=layers,
         decoder=True,
         downsample_steps=downsample_steps,
+        feature_output=True,
       )
     )
+    self.to_image = nn.Conv2d(start_channels, in_channels, kernel_size, padding=kernel_size // 2)
 
   def forward(self, x: torch.Tensor) -> torch.Tensor:
     features = self.from_latent(x)
-    return self.backbone(features)
+    return self.to_image(self.backbone(features))
 
 class Vae(nn.Module):
   _MS_SSIM_WEIGHTS = (0.0448, 0.2856, 0.3001, 0.2363, 0.1333)
@@ -101,7 +103,7 @@ class Vae(nn.Module):
 
   def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     mu, logvar = self.encoder(x)
-    latent = self.reparameterize(mu, logvar)
+    latent = self.reparameterize(mu, logvar) if self.training else mu
     return self.decoder(latent), mu, logvar
 
   # helpers
@@ -145,7 +147,7 @@ class Vae(nn.Module):
     p_loss = self._get_lpips(target.device)(reconstruction, target, normalize=True).mean()
     kl_loss = self._KL_LOSS(logvar, mu)
     s_loss = self.ms_ssim_loss(reconstruction, target)
-    return 0.84 * s_loss + 0.16 * l1_loss + 1.0 * p_loss + 1e-6 * kl_loss
+    return 0.7 * s_loss + 0.4 * l1_loss + 0.6 * p_loss + 1e-6 * kl_loss
 
   @staticmethod
   @staticmethod

@@ -28,16 +28,16 @@ class Paths:
 @dataclass
 class Image:
   channels: int = 3
-  image_size: int = 32
+  image_size: int = 64
 
 @dataclass
 class Vae:
-  out_channels: int = 8
+  out_channels: int = 4
   in_channels: int = Image.channels
   kernel_size: int = 3
   start_channels: int = 32
   layers: int = 4
-  downsample_steps: int = 3
+  downsample_steps: int = 2
 
 @dataclass
 class Training:

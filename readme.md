@@ -82,3 +82,8 @@ python downloader.py \
 ```bash
 python -m training.train_vae
 ```
+
+### 6. Test recon (optional)
+```bash
+python -m tests.recon_test
+```
