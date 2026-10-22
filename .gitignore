@@ -2,13 +2,15 @@
 .venv*/
 venv/
 
-data/
+data/open-images
 datasets/
 ckpt/
 
 *.pt
 *.pth
 *.ckpt
+
+notes.txt
 
 __pycache__/
 *.py[cod]

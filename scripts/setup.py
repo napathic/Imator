@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from config import cfg
 from downloader import download_all_images
-from scripts.preresize import IMAGE_ROOT, preresize
+from scripts.preresize import IMAGE_ROOT, resized_dir
 
 
 METADATA_URL = "https://storage.googleapis.com/openimages/2018_04/train/train-images-boxable-with-rotation.csv"
@@ -22,7 +22,7 @@ CPU_FRACTION = 0.8
 
 
 def parse_args() -> argparse.Namespace:
-  parser = argparse.ArgumentParser(description="Download Open Images, split it and pre-resize it.")
+  parser = argparse.ArgumentParser(description="Download Open Images, split it and resize it on the fly.")
   parser.add_argument("--train-count", type=int, default=TRAIN_COUNT, help=f"training images (default {TRAIN_COUNT:,})")
   parser.add_argument("--test-count", type=int, default=TEST_COUNT, help=f"test images (default {TEST_COUNT:,})")
   parser.add_argument("--seed", type=int, default=SEED, help=f"split sampling seed (default {SEED})")
@@ -78,15 +78,16 @@ def main() -> None:
 
   ids_file = fetch_ids(root)
   split_files = make_splits(root, ids_file, args.train_count, args.test_count, args.seed)
+  resize_workers = max(1, int((os.cpu_count() or 1) * args.cpu_fraction))
 
   for name, ids in split_files.items():
     download_all_images({
       "image_list": str(ids),
-      "download_folder": str(root / f"{name}_images"),
+      "download_folder": str(resized_dir(f"{name}_images", args.image_size)),
       "num_processes": args.num_processes,
+      "image_size": args.image_size,
+      "resize_workers": resize_workers,
     })
-
-  preresize(args.image_size, workers=max(1, int((os.cpu_count() or 1) * args.cpu_fraction)))
 
   if args.image_size != cfg.image.image_size:
     print(f"Note: training uses cfg.image.image_size = {cfg.image.image_size}, set it to {args.image_size} to use these images")

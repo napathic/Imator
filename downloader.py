@@ -33,6 +33,7 @@ identifies the image in Open Images. A sample file could be:
 
 import argparse
 from concurrent import futures
+from pathlib import Path
 import os
 import re
 import sys
@@ -40,6 +41,8 @@ import sys
 import boto3
 import botocore
 import tqdm
+
+from scripts.preresize import resize_image
 
 BUCKET_NAME = 'open-images-dataset'
 REGEX = r'(test|train|validation|challenge2018)/([a-fA-F0-9]*)'
@@ -66,16 +69,24 @@ def read_image_list_file(image_list_file):
       yield line.strip().replace('.jpg', '')
 
 
-def download_one_image(bucket, split, image_id, download_folder):
-  destination = os.path.join(download_folder, f'{image_id}.jpg')
+def download_one_image(client, split, image_id, download_folder, image_size=None, resize_pool=None):
+  extension = 'png' if image_size else 'jpg'
+  destination = os.path.join(download_folder, f'{image_id}.{extension}')
   if os.path.isfile(destination) and os.path.getsize(destination) > 0:
     return 'existing'
 
   try:
-    bucket.download_file(
-        f'{split}/{image_id}.jpg',
-        destination,
-    )
+    body = client.get_object(Bucket=BUCKET_NAME, Key=f'{split}/{image_id}.jpg')['Body'].read()
+    if image_size:
+      ok = resize_pool.submit(resize_image, body, Path(destination), image_size).result()
+      if not ok:
+        tqdm.tqdm.write(f'Skipping `{split}/{image_id}`: resize failed')
+      return 'downloaded' if ok else 'failed'
+
+    temporary = destination + '.part'
+    with open(temporary, 'wb') as f:
+      f.write(body)
+    os.replace(temporary, destination)
     return 'downloaded'
 
   except botocore.exceptions.ClientError as exception:
@@ -87,10 +98,11 @@ def download_one_image(bucket, split, image_id, download_folder):
 
 def download_all_images(args):
   """Downloads all images specified in the input file."""
-  bucket = boto3.resource(
-      's3', config=botocore.config.Config(
+  client = boto3.client(
+      's3', region_name='us-east-1', config=botocore.config.Config(
           signature_version=botocore.UNSIGNED,
-          max_pool_connections=args['num_processes'])).Bucket(BUCKET_NAME)
+          max_pool_connections=args['num_processes'],
+          retries={'max_attempts': 10, 'mode': 'adaptive'}))
 
   download_folder = args['download_folder'] or os.getcwd()
 
@@ -104,18 +116,27 @@ def download_all_images(args):
   except ValueError as exception:
     sys.exit(exception)
 
+  image_size = args.get('image_size')
+  resize_pool = futures.ProcessPoolExecutor(
+      max_workers=args.get('resize_workers')) if image_size else None
+
   progress_bar = tqdm.tqdm(
       total=len(image_list), desc='Downloading images', leave=True)
-  with futures.ThreadPoolExecutor(
-      max_workers=args['num_processes']) as executor:
-    all_futures = [
-        executor.submit(download_one_image, bucket, split, image_id,
-                        download_folder) for (split, image_id) in image_list
-    ]
-    for future in futures.as_completed(all_futures):
-      future.result()
-      progress_bar.update(1)
-  progress_bar.close()
+  try:
+    with futures.ThreadPoolExecutor(
+        max_workers=args['num_processes']) as executor:
+      all_futures = [
+          executor.submit(download_one_image, client, split, image_id,
+                          download_folder, image_size, resize_pool)
+          for (split, image_id) in image_list
+      ]
+      for future in futures.as_completed(all_futures):
+        future.result()
+        progress_bar.update(1)
+  finally:
+    progress_bar.close()
+    if resize_pool:
+      resize_pool.shutdown()
 
 
 if __name__ == '__main__':

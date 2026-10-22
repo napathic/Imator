@@ -1,3 +1,4 @@
+from io import BytesIO
 from multiprocessing import Pool
 from pathlib import Path
 import os
@@ -17,13 +18,12 @@ def resized_dir(split: str, size: int) -> Path:
   return IMAGE_ROOT / f"{split}_{size}"
 
 
-def resize_one(job: tuple[Path, Path, int]) -> bool:
-  src, dst, size = job
+def resize_image(src: Path | bytes, dst: Path, size: int) -> bool:
   if dst.exists():
     return True
 
   try:
-    with Image.open(src) as image:
+    with Image.open(BytesIO(src) if isinstance(src, bytes) else src) as image:
       image.draft("RGB", (size * 2, size * 2))
       image = image.convert("RGB")
 
@@ -42,6 +42,10 @@ def resize_one(job: tuple[Path, Path, int]) -> bool:
     return True
   except Exception:
     return False
+
+
+def resize_one(job: tuple[Path, Path, int]) -> bool:
+  return resize_image(*job)
 
 
 def preresize(size: int, workers: int | None = None) -> None:
