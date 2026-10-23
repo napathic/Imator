@@ -2,7 +2,7 @@
 
 A text-to-image and image-to-image model in development, for generating and editing images with text prompts.
 
-**Currently working on:** VAE training.
+**Currently working on:** predictor math.
 
 ## Train the VAE
 

@@ -13,12 +13,12 @@ from scripts.preresize import IMAGE_ROOT, resized_dir
 
 
 METADATA_URL = "https://storage.googleapis.com/openimages/2018_04/train/train-images-boxable-with-rotation.csv"
-TRAIN_COUNT = 400_000
+TRAIN_COUNT = 300_000
 TEST_COUNT = 500
 SEED = 55
-NUM_PROCESSES = 35
+NUM_PROCESSES = 100
 IMAGE_SIZE = cfg.image.image_size
-CPU_FRACTION = 0.8
+CPU_FRACTION = 0.9
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,8 +61,8 @@ def make_splits(root: Path, ids_file: Path, train_count: int, test_count: int, s
   sample = random.Random(seed).sample(ids, train_count + test_count)
 
   splits = {
-    "train": (root / "train_ids.txt", sample[:train_count]),
     "test": (root / "test_ids.txt", sample[train_count:]),
+    "train": (root / "train_ids.txt", sample[:train_count]),
   }
   for destination, split in splits.values():
     destination.write_text("\n".join(split) + "\n")

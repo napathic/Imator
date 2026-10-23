@@ -41,9 +41,9 @@ class Vae:
 
 @dataclass
 class Training:
-  vae_lr: float = 3e-4
-  batch_size: int = 24
-  epochs: int = 1
+  vae_lr: float = 2e-4
+  batch_size: int = 48 # NOTE: batch 48 takes alot of ram!, i trained 256px with rtx 6000 WS
+  epochs: int = 10
 
 @dataclass
 class Config():

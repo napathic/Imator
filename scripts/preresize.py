@@ -37,7 +37,7 @@ def resize_image(src: Path | bytes, dst: Path, size: int) -> bool:
       image = image.crop((left, top, left + size, top + size))
 
       tmp = dst.with_suffix(".tmp.png")
-      image.save(tmp, icc_profile=None, exif=b"")
+      image.save(tmp, compress_level=1, icc_profile=None, exif=b"")
       tmp.replace(dst)
     return True
   except Exception:

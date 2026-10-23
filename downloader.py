@@ -37,14 +37,14 @@ from pathlib import Path
 import os
 import re
 import sys
+import threading
 
-import boto3
-import botocore
 import tqdm
+import urllib3
 
 from scripts.preresize import resize_image
 
-BUCKET_NAME = 'open-images-dataset'
+BASE_URL = 'https://open-images-dataset.s3.amazonaws.com'
 REGEX = r'(test|train|validation|challenge2018)/([a-fA-F0-9]*)'
 
 
@@ -69,40 +69,58 @@ def read_image_list_file(image_list_file):
       yield line.strip().replace('.jpg', '')
 
 
-def download_one_image(client, split, image_id, download_folder, image_size=None, resize_pool=None):
+def finish_resize(future, split, image_id, resize_slots, on_resized):
+  resize_slots.release()
+  ok = not future.cancelled() and future.exception() is None and future.result()
+  if not ok:
+    tqdm.tqdm.write(f'Skipping `{split}/{image_id}`: resize failed')
+  on_resized()
+
+
+def download_one_image(http, split, image_id, download_folder, image_size=None,
+                       resize_pool=None, resize_slots=None, on_resized=None):
   extension = 'png' if image_size else 'jpg'
   destination = os.path.join(download_folder, f'{image_id}.{extension}')
   if os.path.isfile(destination) and os.path.getsize(destination) > 0:
     return 'existing'
 
   try:
-    body = client.get_object(Bucket=BUCKET_NAME, Key=f'{split}/{image_id}.jpg')['Body'].read()
-    if image_size:
-      ok = resize_pool.submit(resize_image, body, Path(destination), image_size).result()
-      if not ok:
-        tqdm.tqdm.write(f'Skipping `{split}/{image_id}`: resize failed')
-      return 'downloaded' if ok else 'failed'
-
-    temporary = destination + '.part'
-    with open(temporary, 'wb') as f:
-      f.write(body)
-    os.replace(temporary, destination)
-    return 'downloaded'
-
-  except botocore.exceptions.ClientError as exception:
-    tqdm.tqdm.write(
-        f'Skipping `{split}/{image_id}`: {exception}'
-    )
+    response = http.request('GET', f'{BASE_URL}/{split}/{image_id}.jpg')
+  except urllib3.exceptions.HTTPError as exception:
+    tqdm.tqdm.write(f'Skipping `{split}/{image_id}`: {exception}')
     return 'failed'
+
+  if response.status != 200:
+    tqdm.tqdm.write(f'Skipping `{split}/{image_id}`: HTTP {response.status}')
+    return 'failed'
+
+  body = response.data
+  if image_size:
+    resize_slots.acquire()
+    try:
+      future = resize_pool.submit(resize_image, body, Path(destination), image_size)
+    except Exception:
+      resize_slots.release()
+      raise
+    future.add_done_callback(
+        lambda f: finish_resize(f, split, image_id, resize_slots, on_resized))
+    return 'resizing'
+
+  temporary = destination + '.part'
+  with open(temporary, 'wb') as f:
+    f.write(body)
+  os.replace(temporary, destination)
+  return 'downloaded'
 
 
 def download_all_images(args):
   """Downloads all images specified in the input file."""
-  client = boto3.client(
-      's3', region_name='us-east-1', config=botocore.config.Config(
-          signature_version=botocore.UNSIGNED,
-          max_pool_connections=args['num_processes'],
-          retries={'max_attempts': 10, 'mode': 'adaptive'}))
+  http = urllib3.PoolManager(
+      maxsize=args['num_processes'],
+      timeout=urllib3.Timeout(connect=10, read=60),
+      retries=urllib3.Retry(
+          total=10, backoff_factor=0.5,
+          status_forcelist=(429, 500, 502, 503, 504)))
 
   download_folder = args['download_folder'] or os.getcwd()
 
@@ -117,26 +135,35 @@ def download_all_images(args):
     sys.exit(exception)
 
   image_size = args.get('image_size')
+  resize_workers = args.get('resize_workers') or os.cpu_count()
   resize_pool = futures.ProcessPoolExecutor(
-      max_workers=args.get('resize_workers')) if image_size else None
+      max_workers=resize_workers) if image_size else None
+  resize_slots = threading.BoundedSemaphore(resize_workers * 4)
 
   progress_bar = tqdm.tqdm(
       total=len(image_list), desc='Downloading images', leave=True)
+  progress_lock = threading.Lock()
+
+  def advance():
+    with progress_lock:
+      progress_bar.update(1)
+
   try:
     with futures.ThreadPoolExecutor(
         max_workers=args['num_processes']) as executor:
       all_futures = [
-          executor.submit(download_one_image, client, split, image_id,
-                          download_folder, image_size, resize_pool)
+          executor.submit(download_one_image, http, split, image_id,
+                          download_folder, image_size, resize_pool,
+                          resize_slots, advance)
           for (split, image_id) in image_list
       ]
       for future in futures.as_completed(all_futures):
-        future.result()
-        progress_bar.update(1)
+        if future.result() != 'resizing':
+          advance()
   finally:
-    progress_bar.close()
     if resize_pool:
       resize_pool.shutdown()
+    progress_bar.close()
 
 
 if __name__ == '__main__':
@@ -151,7 +178,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--num_processes',
       type=int,
-      default=5,
+      default=15,
       help='Number of parallel processes to use (default is 5).')
   parser.add_argument(
       '--download_folder',
